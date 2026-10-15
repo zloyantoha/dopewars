@@ -144,7 +144,7 @@ class MainActivity : Activity() {
     }
     private fun render() {
         root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(18,18,18,30);setBackgroundColor(bg) }
-        val sc=ScrollView(this);sc.fillViewport=true;sc.addView(root);setContentView(sc)
+        val sc=ScrollView(this);sc.isFillViewport = true;sc.addView(root);setContentView(sc)
         root.addView(label("DOPEWARS  ·  RU", 25f, true, accent))
         root.addView(label("День $day / 30     •     ${places[place]}", 17f, true))
         val info=section()
