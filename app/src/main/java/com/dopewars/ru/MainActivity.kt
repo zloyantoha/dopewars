@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.os.Bundle
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.InputType
@@ -133,66 +134,193 @@ class MainActivity : Activity() {
         val ev=o.optString("special", "").split(",")
         for (i in goods.indices) {stock[i]=a[i].toInt();prices[i]=p[i].toInt();market[i]=m[i]=="1"; special[i]=ev.getOrNull(i)?.toIntOrNull() ?: 0}
     }
+    private var activeTab = 0
+    private val cyan = Color.rgb(18, 207, 185)
+    private val muted = Color.rgb(155, 174, 193)
+    private val blue = Color.rgb(13, 129, 200)
+    private val orange = Color.rgb(249, 154, 57)
+
+    private fun dp(value: Int) = (resources.displayMetrics.density * value + 0.5f).toInt()
+    private fun rounded(color: Int, radius: Int = 14): GradientDrawable = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius).toFloat()
+    }
     private fun label(txt: String, size: Float = 16f, bold: Boolean = false, color: Int = fg): TextView = TextView(this).apply {
-        text=txt; textSize=size;setTextColor(color);setPadding(0, 7, 0, 7)
-        if(bold) setTypeface(null, Typeface.BOLD)
+        text = txt; textSize = size; setTextColor(color)
+        if (bold) setTypeface(null, Typeface.BOLD)
+        gravity = Gravity.CENTER_VERTICAL
     }
     private fun button(txt: String, run: () -> Unit): Button = Button(this).apply {
-        text=txt;setTextColor(Color.WHITE);setAllCaps(false); setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(43, 82, 104)))
+        text = txt; setTextColor(Color.WHITE); setAllCaps(false); textSize = 14f
+        backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(28, 74, 96))
         setOnClickListener { run() }
     }
-    private fun section(): LinearLayout = LinearLayout(this).apply {
-        orientation=LinearLayout.VERTICAL;setPadding(20,16,20,16);setBackgroundColor(panel)
-        val p=LinearLayout.LayoutParams(-1,-2);p.bottomMargin=14;root.addView(this,p)
+    private fun action(txt: String, color: Int = cyan, run: () -> Unit): TextView = label(txt, 15f, true, Color.WHITE).apply {
+        gravity = Gravity.CENTER
+        setPadding(dp(12), dp(13), dp(12), dp(13))
+        background = rounded(color, 11)
+        setOnClickListener { run() }
+    }
+    private fun column(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+    private fun paddedCard(parent: LinearLayout): LinearLayout = column().apply {
+        setPadding(dp(15), dp(14), dp(15), dp(14)); background = rounded(panel)
+        val params = LinearLayout.LayoutParams(-1, -2)
+        params.bottomMargin = dp(12)
+        parent.addView(this, params)
+    }
+    private fun put(parent: LinearLayout, view: View, bottom: Int = 0) {
+        val params = LinearLayout.LayoutParams(-1, -2)
+        params.bottomMargin = dp(bottom)
+        parent.addView(view, params)
+    }
+    private fun header(parent: LinearLayout, title: String, subtitle: String = "") {
+        put(parent, label(title, 23f, true), 4)
+        if (subtitle.isNotBlank()) put(parent, label(subtitle, 13f, false, muted), 13)
+    }
+    private fun openTab(tab: Int) { activeTab = tab; render() }
+    private fun stat(parent: LinearLayout, title: String, value: String, color: Int = fg) {
+        val c = column().apply { setPadding(dp(12), dp(11), dp(8), dp(11)); background = rounded(Color.rgb(18, 39, 57), 10) }
+        put(c, label(title, 12f, false, muted), 5)
+        put(c, label(value, 17f, true, color))
+        parent.addView(c, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5) })
     }
     private fun render() {
-        root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(18,18,18,30);setBackgroundColor(bg) }
-        val sc=ScrollView(this);sc.isFillViewport=true;sc.addView(root);setContentView(sc)
-        root.addView(label("DOPEWARS  ·  ХАРЬКОВ", 25f, true, accent))
-        root.addView(label("День $day / 30     •     ${places[place]}", 17f, true))
-        val info=section()
-        info.addView(label("Наличные: ${money(cash)}",20f,true))
-        info.addView(label("Долг: ${money(debt)}     Банк: ${money(bank)}"))
-        info.addView(label("Багаж: ${stock.sum()} / $capacity · свободно ${capacity - stock.sum()}", 14f))
-        info.addView(label("Завершено партий: $gamesFinished" + if(bestScore != Long.MIN_VALUE) " · рекорд ${money(bestScore)}" else "", 13f))
-        val news=section();news.addView(label(message,15f,false,accent))
-        if(lastTripEvent.isNotBlank()) news.addView(label(lastTripEvent,14f))
+        val shell = column().apply { setBackgroundColor(bg) }
+        setContentView(shell)
+        val content = column().apply { setPadding(dp(13), dp(15), dp(13), dp(10)) }
+        val scroll = ScrollView(this).apply { isFillViewport = false; addView(content) }
+        shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        put(content, label("DOPEWARS  •  ХАРЬКОВ", 22f, true, cyan), 10)
+        put(content, label("День $day / 30    •    ${places[place]}", 16f, true), 12)
+        when (activeTab) {
+            0 -> showHome(content)
+            1 -> showMap(content)
+            2 -> showMarket(content)
+            3 -> showInventory(content)
+            4 -> showFinance(content)
+        }
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(3), dp(7), dp(3), dp(9))
+            setBackgroundColor(Color.rgb(16, 31, 47))
+        }
+        val tabs = listOf("⌂\nГлавная", "◈\nРайоны", "▤\nРынок", "▣\nБагаж", "▥\nФинансы")
+        tabs.forEachIndexed { i, name ->
+            val item = label(name, 12f, i == activeTab, if (i == activeTab) cyan else muted).apply {
+                gravity = Gravity.CENTER
+                setPadding(dp(1), dp(7), dp(1), dp(7))
+                if (i == activeTab) background = rounded(Color.rgb(28, 63, 76), 8)
+                setOnClickListener { openTab(i) }
+            }
+            nav.addView(item, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        shell.addView(nav)
+    }
+    private fun showHome(parent: LinearLayout) {
+        val summary = paddedCard(parent)
+        put(summary, label("Твой баланс", 14f, false, muted), 6)
+        put(summary, label(money(cash), 31f, true), 13)
+        val stats = LinearLayout(this)
+        stat(stats, "Долг", money(debt), orange)
+        stat(stats, "В банке", money(bank), cyan)
+        put(summary, stats, 13)
+        put(summary, label("Багаж: ${stock.sum()} / $capacity", 13f, false, muted), 5)
+        put(summary, ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = capacity; progress = stock.sum(); progressTintList = android.content.res.ColorStateList.valueOf(cyan)
+        }, 9)
+        val news = paddedCard(parent)
+        put(news, label("События", 17f, true), 6)
+        put(news, label(message, 14f), 4)
+        if (lastTripEvent.isNotBlank()) put(news, label(lastTripEvent, 13f, false, muted))
         if (ended) {
-            val card=section();card.addView(label("ИГРА ЗАВЕРШЕНА",22f,true))
-            card.addView(label("Итог: ${money(score())}",20f,true,accent))
-            card.addView(label("Наличные ${money(cash)}, банк ${money(bank)}, долг ${money(debt)}"))
-            card.addView(label("Остатки багажа в итоговом счёте не оцениваются."))
-            card.addView(label("Лучший результат: ${money(bestScore)}"))
-            card.addView(button("Новая игра") {reset();render()});return
+            val end = paddedCard(parent)
+            put(end, label("Игра завершена", 21f, true), 8)
+            put(end, label("Результат: ${money(score())}", 19f, true, cyan), 8)
+            put(end, label("Рекорд: ${money(bestScore)}", 14f), 12)
+            put(end, action("Новая игра") { reset(); openTab(0) })
+            return
         }
-        val marketCard=section();marketCard.addView(label("РЫНОК · ${market.count { it }} предложений",20f,true))
-        for(i in goods.indices) {
-            if (!market[i] && stock[i]==0) continue
-            val row=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(0,8,0,8)}
-            val marker = when (special[i]) { -1 -> "  ↓ РАСПРОДАЖА"; 1 -> "  ↑ ДЕФИЦИТ"; else -> "" }
-            row.addView(label("${goods[i].title}   ${if(market[i]) money(prices[i].toLong()) else "нет в продаже"}   •   у тебя: ${stock[i]}$marker",15f,true))
-            val actions=LinearLayout(this)
-            if(market[i]) actions.addView(button("Купить") {trade(i,true)})
-            if(stock[i]>0 && market[i]) actions.addView(button("Продать") {trade(i,false)})
-            row.addView(actions);marketCard.addView(row)
-        }
-        val capacityCard=section();capacityCard.addView(label("БАГАЖ",20f,true))
-        capacityCard.addView(label("Вместимость: $capacity единиц. Расширение багажа — игровая адаптация, не оригинальная формула.",13f))
-        capacityCard.addView(button("Дополнительная сумка (+20 мест) · $1 000") {
-            if(cash>=1000){cash-=1000;capacity+=20;message="Дополнительная сумка куплена. Вместимость: $capacity";save();render()}
-            else Toast.makeText(this,"Не хватает игровых денег",Toast.LENGTH_SHORT).show()
+        val quick = paddedCard(parent)
+        put(quick, label("Быстрые действия", 18f, true), 12)
+        put(quick, action("Открыть рынок") { openTab(2) }, 8)
+        put(quick, action("Выбрать район", blue) { openTab(1) }, 8)
+        put(quick, action("Финансы", Color.rgb(77, 70, 136)) { openTab(4) })
+        val scoreCard = paddedCard(parent)
+        put(scoreCard, label("Сыграно партий: $gamesFinished", 14f))
+        if (bestScore != Long.MIN_VALUE) put(scoreCard, label("Лучший результат: ${money(bestScore)}", 14f, false, muted))
+        put(scoreCard, action("Начать новую игру", Color.rgb(77, 70, 95)) {
+            AlertDialog.Builder(this).setMessage("Начать новую игру и сбросить текущую партию?")
+                .setPositiveButton("Начать") { _, _ -> reset(); openTab(0) }
+                .setNegativeButton("Отмена", null).show()
         })
-        val navigate=section();navigate.addView(label("ПЕРЕМЕЩЕНИЕ",20f,true))
-        navigate.addView(button("Выбрать район") { choosePlace() })
-        val finance=section();finance.addView(label("ФИНАНСЫ",20f,true))
-        finance.addView(label("Банк и ростовщик находятся на ХТЗ.",13f))
-        if(place==1) {
-            finance.addView(button("Погасить долг") { transfer("Погашение долга", min(cash,debt)) { amt -> cash-=amt;debt-=amt } })
-            finance.addView(button("Положить в банк") {transfer("Вклад",cash) {amt->cash-=amt;bank+=amt}})
-            finance.addView(button("Снять со счёта") {transfer("Снятие",bank) {amt->bank-=amt;cash+=amt}})
+    }
+    private fun showMap(parent: LinearLayout) {
+        header(parent, "Районы Харькова", "Выбери район для следующего игрового дня")
+        if (ended) { put(parent, label("Партия завершена. Начни новую игру.")); return }
+        places.forEachIndexed { i, name ->
+            val card = paddedCard(parent)
+            val here = i == place
+            put(card, label((if (here) "●  " else "➜  ") + name, 18f, true, if (here) cyan else fg), 6)
+            put(card, label(when { here -> "Ты сейчас здесь"; i == 1 -> "Здесь находятся банк и ростовщик"; else -> "Перемещение займёт один игровой день" }, 13f, false, muted), 8)
+            if (!here) put(card, action("Отправиться", blue) { travel(i) })
         }
-        root.addView(button("Начать новую игру") {AlertDialog.Builder(this).setMessage("Сбросить весь прогресс?")
-            .setPositiveButton("Да") {_,_->reset();render()}.setNegativeButton("Отмена",null).show()})
+    }
+    private fun showMarket(parent: LinearLayout) {
+        header(parent, "Рынок — ${places[place]}", "Предложений сегодня: ${market.count { it }}")
+        if (ended) { put(parent, label("Партия завершена.")); return }
+        goods.indices.filter { market[it] || stock[it] > 0 }.forEach { i ->
+            val card = paddedCard(parent)
+            val name = goods[i].title
+            put(card, label(name, 18f, true), 5)
+            val price = if (market[i]) "Цена: ${money(prices[i].toLong())}" else "Сегодня нет в продаже"
+            put(card, label(price, 16f, true, cyan), 3)
+            put(card, label("В багаже: ${stock[i]} шт.", 13f, false, muted), 5)
+            if (market[i] && special[i] != 0) {
+                put(card, label(if (special[i] < 0) "↓ Особое снижение цены" else "↑ Особое повышение цены", 13f, true, if (special[i] < 0) cyan else orange), 7)
+            }
+            if (market[i]) {
+                val actions = LinearLayout(this)
+                actions.addView(action("Купить") { trade(i, true) }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+                if (stock[i] > 0) actions.addView(action("Продать", blue) { trade(i, false) }, LinearLayout.LayoutParams(0, -2, 1f))
+                put(card, actions)
+            }
+        }
+    }
+    private fun showInventory(parent: LinearLayout) {
+        header(parent, "Мой багаж", "Занято ${stock.sum()} из $capacity мест")
+        val items = goods.indices.filter { stock[it] > 0 }
+        val c = paddedCard(parent)
+        if (items.isEmpty()) put(c, label("Багаж пока пуст", 16f, false, muted))
+        items.forEach { i ->
+            put(c, label("${goods[i].title}  ·  ${stock[i]} шт.", 16f, true), 10)
+        }
+        val upgrade = paddedCard(parent)
+        put(upgrade, label("Увеличить багаж", 18f, true), 7)
+        put(upgrade, label("Дополнительная сумка: +20 мест за ${money(1000)}. Это игровая адаптация.", 14f, false, muted), 12)
+        put(upgrade, action("Купить дополнительную сумку") {
+            if (cash >= 1000) {
+                cash -= 1000; capacity += 20; message = "Вместимость багажа: $capacity"
+                save(); render()
+            } else Toast.makeText(this, "Недостаточно игровых денег", Toast.LENGTH_SHORT).show()
+        })
+    }
+    private fun showFinance(parent: LinearLayout) {
+        header(parent, "Финансы", "Банк и ростовщик находятся на ХТЗ")
+        val summary = paddedCard(parent)
+        put(summary, label("Наличные: ${money(cash)}", 18f, true), 10)
+        put(summary, label("На счёте: ${money(bank)}", 17f, true, cyan), 10)
+        put(summary, label("Текущий долг: ${money(debt)}", 17f, true, orange), 10)
+        put(summary, label("При перемещении долг растёт на 10%, вклад — на 5%.", 13f, false, muted))
+        if (ended) return
+        if (place != 1) {
+            val card = paddedCard(parent)
+            put(card, label("Финансовые операции доступны на ХТЗ.", 15f), 10)
+            put(card, action("Перейти к районам", blue) { openTab(1) })
+            return
+        }
+        val actions = paddedCard(parent)
+        put(actions, action("Погасить долг") { transfer("Погашение долга", min(cash, debt)) { amount -> cash -= amount; debt -= amount } }, 8)
+        put(actions, action("Положить в банк", blue) { transfer("Вклад", cash) { amount -> cash -= amount; bank += amount } }, 8)
+        put(actions, action("Снять со счёта", blue) { transfer("Снятие", bank) { amount -> bank -= amount; cash += amount } })
     }
     private fun numberDialog(title:String,max:Int,go:(Int)->Unit) {
         if(max<=0){Toast.makeText(this,"Недостаточно средств или товара",Toast.LENGTH_SHORT).show();return}
@@ -310,21 +438,22 @@ class MainActivity : Activity() {
         else -> ""
     }
 
-    private fun choosePlace() {
-        val choices=places.mapIndexedNotNull {i,s->if(i!=place)s else null}.toTypedArray()
-        val ids=places.indices.filter {it!=place}
-        AlertDialog.Builder(this).setTitle("Куда отправимся?").setItems(choices) {_,which->
-            place=ids[which];day++;debt=debt*110/100;bank=bank*105/100
-            if(day>30){
-                ended=true; gamesFinished++
-                if(score()>bestScore) bestScore=score()
-                lastTripEvent=""
-                message="30 дней позади. Игра окончена."
-            } else {
-                refreshPrices();message="Ты прибыл в район ${places[place]}. Цены обновились."
-                lastTripEvent=rollTravelEvent()
-            }
-            save();render()
-        }.setNegativeButton("Отмена",null).show()
+    private fun travel(target: Int) {
+        if (target == place || ended) return
+        AlertDialog.Builder(this).setTitle("Перемещение")
+            .setMessage("Отправиться в район ${places[target]}? Пройдёт один игровой день.")
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Отправиться") { _, _ ->
+                place = target; day++; debt = debt * 110 / 100; bank = bank * 105 / 100
+                if (day > 30) {
+                    ended = true; gamesFinished++
+                    if (score() > bestScore) bestScore = score()
+                    lastTripEvent = ""; message = "30 дней позади. Игра окончена."
+                } else {
+                    refreshPrices(); message = "Ты прибыл в район ${places[place]}. Цены обновились."
+                    lastTripEvent = rollTravelEvent()
+                }
+                save(); render()
+            }.show()
     }
 }
