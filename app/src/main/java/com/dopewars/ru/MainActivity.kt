@@ -156,15 +156,15 @@ class MainActivity : Activity() {
     }
     private fun action(txt: String, color: Int = cyan, run: () -> Unit): TextView = label(txt, 15f, true, Color.WHITE).apply {
         gravity = Gravity.CENTER
-        setPadding(dp(12), dp(13), dp(12), dp(13))
+        setPadding(dp(12), dp(9), dp(12), dp(9))
         background = rounded(color, 11)
         setOnClickListener { run() }
     }
     private fun column(): LinearLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
     private fun paddedCard(parent: LinearLayout): LinearLayout = column().apply {
-        setPadding(dp(15), dp(14), dp(15), dp(14)); background = rounded(panel)
+        setPadding(dp(12), dp(10), dp(12), dp(10)); background = rounded(panel)
         val params = LinearLayout.LayoutParams(-1, -2)
-        params.bottomMargin = dp(12)
+        params.bottomMargin = dp(7)
         parent.addView(this, params)
     }
     private fun put(parent: LinearLayout, view: View, bottom: Int = 0) {
@@ -173,8 +173,8 @@ class MainActivity : Activity() {
         parent.addView(view, params)
     }
     private fun header(parent: LinearLayout, title: String, subtitle: String = "") {
-        put(parent, label(title, 23f, true), 4)
-        if (subtitle.isNotBlank()) put(parent, label(subtitle, 13f, false, muted), 13)
+        put(parent, label(title, 20f, true), 2)
+        if (subtitle.isNotBlank()) put(parent, label(subtitle, 12f, false, muted), 8)
     }
     private fun openTab(tab: Int) { activeTab = tab; render() }
     private fun stat(parent: LinearLayout, title: String, value: String, color: Int = fg) {
@@ -186,11 +186,11 @@ class MainActivity : Activity() {
     private fun render() {
         val shell = column().apply { setBackgroundColor(bg) }
         setContentView(shell)
-        val content = column().apply { setPadding(dp(13), dp(15), dp(13), dp(10)) }
+        val content = column().apply { setPadding(dp(11), dp(9), dp(11), dp(7)) }
         val scroll = ScrollView(this).apply { isFillViewport = false; addView(content) }
         shell.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        put(content, label("DOPEWARS  •  ХАРЬКОВ", 22f, true, cyan), 10)
-        put(content, label("День $day / 30    •    ${places[place]}", 16f, true), 12)
+        put(content, label("DOPEWARS  •  ХАРЬКОВ", 19f, true, cyan), 5)
+        put(content, label("День $day / 30    •    ${places[place]}", 14f, true), 8)
         when (activeTab) {
             0 -> showHome(content)
             1 -> showMap(content)
@@ -200,14 +200,14 @@ class MainActivity : Activity() {
         }
         val nav = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(3), dp(7), dp(3), dp(9))
+            setPadding(dp(3), dp(4), dp(3), dp(5))
             setBackgroundColor(Color.rgb(16, 31, 47))
         }
         val tabs = listOf("⌂\nГлавная", "◈\nРайоны", "▤\nРынок", "▣\nБагаж", "▥\nФинансы")
         tabs.forEachIndexed { i, name ->
             val item = label(name, 12f, i == activeTab, if (i == activeTab) cyan else muted).apply {
                 gravity = Gravity.CENTER
-                setPadding(dp(1), dp(7), dp(1), dp(7))
+                setPadding(dp(1), dp(5), dp(1), dp(5))
                 if (i == activeTab) background = rounded(Color.rgb(28, 63, 76), 8)
                 setOnClickListener { openTab(i) }
             }
@@ -253,36 +253,53 @@ class MainActivity : Activity() {
                 .setNegativeButton("Отмена", null).show()
         })
     }
+    // Компактные строки сохраняют крупные зоны нажатия, но убирают лишнюю высоту карточек.
     private fun showMap(parent: LinearLayout) {
-        header(parent, "Районы Харькова", "Выбери район для следующего игрового дня")
+        header(parent, "Районы Харькова", "Переезд занимает 1 игровой день")
         if (ended) { put(parent, label("Партия завершена. Начни новую игру.")); return }
         places.forEachIndexed { i, name ->
-            val card = paddedCard(parent)
             val here = i == place
-            put(card, label((if (here) "●  " else "➜  ") + name, 18f, true, if (here) cyan else fg), 6)
-            put(card, label(when { here -> "Ты сейчас здесь"; i == 1 -> "Здесь находятся банк и ростовщик"; else -> "Перемещение займёт один игровой день" }, 13f, false, muted), 8)
-            if (!here) put(card, action("Отправиться", blue) { travel(i) })
+            val card = paddedCard(parent)
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val info = column()
+            put(info, label((if (here) "●  " else "➜  ") + name, 16f, true, if (here) cyan else fg), 2)
+            val note = when { here -> "Ты сейчас здесь"; i == 1 -> "Банк и ростовщик"; else -> "1 игровой день" }
+            put(info, label(note, 12f, false, muted))
+            row.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
+            if (!here) {
+                row.addView(action("Ехать", blue) { travel(i) }, LinearLayout.LayoutParams(dp(86), -2).apply { marginStart = dp(8) })
+            } else {
+                row.addView(label("Здесь", 12f, true, cyan).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(86), dp(44)))
+            }
+            put(card, row)
         }
     }
     private fun showMarket(parent: LinearLayout) {
-        header(parent, "Рынок — ${places[place]}", "Предложений сегодня: ${market.count { it }}")
+        header(parent, "Рынок — ${places[place]}", "Предложений: ${market.count { it }}")
         if (ended) { put(parent, label("Партия завершена.")); return }
         goods.indices.filter { market[it] || stock[it] > 0 }.forEach { i ->
             val card = paddedCard(parent)
-            val name = goods[i].title
-            put(card, label(name, 18f, true), 5)
-            val price = if (market[i]) "Цена: ${money(prices[i].toLong())}" else "Сегодня нет в продаже"
-            put(card, label(price, 16f, true, cyan), 3)
-            put(card, label("В багаже: ${stock[i]} шт.", 13f, false, muted), 5)
+            val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            val info = column()
+            put(info, label(goods[i].title, 16f, true), 2)
+            put(info, label(if (market[i]) money(prices[i].toLong()) else "Нет в продаже", 16f, true, cyan), 2)
+            val note = "В багаже: ${stock[i]} шт."
+            put(info, label(note, 12f, false, muted), if (special[i] == 0 || !market[i]) 0 else 2)
             if (market[i] && special[i] != 0) {
-                put(card, label(if (special[i] < 0) "↓ Особое снижение цены" else "↑ Особое повышение цены", 13f, true, if (special[i] < 0) cyan else orange), 7)
+                val event = if (special[i] < 0) "↓ Снижение цены" else "↑ Повышение цены"
+                put(info, label(event, 12f, true, if (special[i] < 0) cyan else orange))
             }
+            top.addView(info, LinearLayout.LayoutParams(0, -2, 1f))
             if (market[i]) {
-                val actions = LinearLayout(this)
-                actions.addView(action("Купить") { trade(i, true) }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                if (stock[i] > 0) actions.addView(action("Продать", blue) { trade(i, false) }, LinearLayout.LayoutParams(0, -2, 1f))
-                put(card, actions)
+                val controls = column()
+                controls.addView(action("Купить") { trade(i, true) }, LinearLayout.LayoutParams(dp(98), -2))
+                if (stock[i] > 0) {
+                    val sell = action("Продать", blue) { trade(i, false) }
+                    controls.addView(sell, LinearLayout.LayoutParams(dp(98), -2).apply { topMargin = dp(5) })
+                }
+                top.addView(controls, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
             }
+            put(card, top)
         }
     }
     private fun showInventory(parent: LinearLayout) {
