@@ -10,8 +10,8 @@ android {
         applicationId = "com.dopewars.ru"
         minSdk = 24
         targetSdk = 28
-        versionCode = 5
-        versionName = "0.5-kharkiv"
+        versionCode = 6
+        versionName = "0.6-kharkiv"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
